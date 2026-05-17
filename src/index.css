@@ -1,0 +1,51 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Cormorant Garamond", serif;
+  
+  --color-natural-primary: #5A5A40;
+  --color-natural-secondary: #D4A373;
+  --color-natural-bg: #FDFCF7;
+  --color-natural-surface: #F5F2ED;
+  --color-natural-accent: #E5E0D5;
+
+  --color-pro-primary: #1E293B;
+  --color-pro-secondary: #4F46E5;
+  --color-pro-bg: #F8FAFC;
+  --color-pro-surface: #F1F5F9;
+  --color-pro-accent: #CBD5E1;
+
+  --color-ui-primary: var(--color-natural-primary);
+  --color-ui-secondary: var(--color-natural-secondary);
+  --color-ui-bg: var(--color-natural-bg);
+  --color-ui-surface: var(--color-natural-surface);
+  --color-ui-accent: var(--color-natural-accent);
+}
+
+.theme-customer {
+  --color-ui-primary: #5A5A40;
+  --color-ui-secondary: #D4A373;
+  --color-ui-bg: #FDFCF7;
+  --color-ui-surface: #F5F2ED;
+  --color-ui-accent: #E5E0D5;
+}
+
+.theme-provider {
+  --color-ui-primary: #1E293B;
+  --color-ui-secondary: #4F46E5;
+  --color-ui-bg: #F8FAFC;
+  --color-ui-surface: #F1F5F9;
+  --color-ui-accent: #CBD5E1;
+}
+
+@layer base {
+  body {
+    @apply bg-ui-bg text-stone-800 font-sans transition-colors duration-500;
+  }
+}
+
+.serif {
+  @apply font-serif;
+}

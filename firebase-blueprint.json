@@ -1,0 +1,170 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile data for both customers and providers.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["customer", "provider"] },
+        "fullName": { "type": "string" },
+        "bio": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "rating": { "type": "number" },
+        "totalJobs": { "type": "number" },
+        "fcmToken": { "type": "string" },
+        "serviceArea": { "type": "string" },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "addresses": { 
+          "type": "array", 
+          "items": { 
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "tag": { "type": "string" },
+              "text": { "type": "string" },
+              "lat": { "type": "number" },
+              "lng": { "type": "number" },
+              "instructions": { "type": "string" }
+            }
+          }
+        },
+        "employees": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "realName": { "type": "string" },
+              "pseudoName": { "type": "string" },
+              "role": { "type": "string" },
+              "active": { "type": "boolean" }
+            }
+          }
+        }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "ServiceRequest": {
+      "title": "Cleaning Service Request",
+      "description": "A request created by a customer for a cleaning service.",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "urgent": { "type": "boolean" },
+        "location": { "type": "string" },
+        "addressTag": { "type": "string" },
+        "scheduledDate": { "type": "string" },
+        "isRecurring": { "type": "boolean" },
+        "recurrenceInterval": { "type": "string", "enum": ["One-time", "Weekly", "Bi-weekly", "Monthly"] },
+        "requiredCleaners": { "type": "string", "enum": ["Individual", "Group", "Any"] },
+        "status": { "type": "string", "enum": ["open", "booked", "completed", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "quoteCount": { "type": "number" },
+        "providerId": { "type": "string" }
+      },
+      "required": ["requestId", "customerId", "title", "status"]
+    },
+    "Quote": {
+      "title": "Service Quote",
+      "description": "A quote provided by a cleaning professional for a specific request.",
+      "type": "object",
+      "properties": {
+        "quoteId": { "type": "string" },
+        "requestId": { "type": "string" },
+        "providerId": { "type": "string" },
+        "providerName": { "type": "string" },
+        "providerAvatar": { "type": "string" },
+        "amount": { "type": "number" },
+        "priceType": { "type": "string", "enum": ["Fixed", "Hourly"] },
+        "isNegotiable": { "type": "boolean" },
+        "transportCost": { "type": "number" },
+        "materialCost": { "type": "number" },
+        "materialIncluded": { "type": "boolean" },
+        "message": { "type": "string" },
+        "assignedEmployees": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["quoteId", "requestId", "providerId", "amount", "status"]
+    },
+    "Message": {
+      "title": "Chat Message",
+      "description": "A message sent within a specific service request chat.",
+      "type": "object",
+      "properties": {
+        "messageId": { "type": "string" },
+        "requestId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["messageId", "requestId", "senderId", "text", "createdAt"]
+    },
+    "Notification": {
+      "title": "User Notification",
+      "description": "A notification for various events like new quotes, messages, etc.",
+      "type": "object",
+      "properties": {
+        "notificationId": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string" },
+        "relatedId": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["notificationId", "userId", "title", "message", "type", "read", "createdAt"]
+    },
+    "Review": {
+      "title": "Provider Review",
+      "description": "A review left by a customer for a provider after a completed service.",
+      "type": "object",
+      "properties": {
+        "reviewId": { "type": "string" },
+        "requestId": { "type": "string" },
+        "providerId": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "rating": { "type": "number", "minimum": 1, "maximum": 5 },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["reviewId", "requestId", "providerId", "customerId", "customerName", "rating", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User notifications"
+    },
+    "/requests/{requestId}": {
+      "schema": "ServiceRequest",
+      "description": "Cleaning requests"
+    },
+    "/requests/{requestId}/quotes/{quoteId}": {
+      "schema": "Quote",
+      "description": "Quotes for a specific request"
+    },
+    "/requests/{requestId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Chat messages for a specific request"
+    },
+    "/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Service reviews"
+    }
+  }
+}

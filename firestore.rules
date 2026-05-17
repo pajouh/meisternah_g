@@ -1,0 +1,179 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isCustomer() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'customer';
+    }
+
+    function isProvider() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'provider';
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation Helpers
+    function isValidUser(data) {
+      return (!('fullName' in data) || data.fullName is string) &&
+             (!('role' in data) || (data.role in ['customer', 'provider', ''])) &&
+             (!('email' in data) || data.email is string) &&
+             (!('bio' in data) || (data.bio is string || data.bio == null)) &&
+             (!('phoneNumber' in data) || data.phoneNumber is string) &&
+             (!('phoneVerified' in data) || data.phoneVerified is bool) &&
+             (!('uid' in data) || data.uid is string) &&
+             (!('avatarUrl' in data) || (data.avatarUrl is string || data.avatarUrl == null)) &&
+             (!('serviceArea' in data) || (data.serviceArea is string || data.serviceArea == null)) &&
+             (!('skills' in data) || data.skills is list) &&
+             (!('addresses' in data) || data.addresses is list) &&
+             (!('employees' in data) || data.employees is list) &&
+             (!('rating' in data) || data.rating is number) &&
+             (!('totalJobs' in data) || data.totalJobs is number) &&
+             (!('fcmToken' in data) || (data.fcmToken is string || data.fcmToken == null)) &&
+             (!('createdAt' in data) || (data.createdAt is string || data.createdAt is timestamp)) &&
+             (!('updatedAt' in data) || (data.updatedAt is string || data.updatedAt is timestamp));
+    }
+
+    function isValidRequest(data) {
+      return data.keys().hasAll(['requestId', 'customerId', 'title', 'status', 'createdAt']) &&
+             isValidId(data.requestId) &&
+             data.customerId == request.auth.uid &&
+             data.title is string && data.title.size() <= 200 &&
+             data.status in ['open', 'booked', 'completed', 'cancelled'] &&
+             data.createdAt is string; // Simplified for MVP, should ideally use server timestamp
+    }
+
+    function isValidQuote(data) {
+      return data.keys().hasAll(['quoteId', 'requestId', 'providerId', 'amount', 'status', 'createdAt']) &&
+             isValidId(data.quoteId) &&
+             isValidId(data.requestId) &&
+             data.providerId == request.auth.uid &&
+             data.amount is number && data.amount > 0 &&
+             data.status in ['pending', 'accepted', 'rejected'] &&
+             data.createdAt is string;
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['messageId', 'requestId', 'senderId', 'senderName', 'text', 'createdAt']) &&
+             isValidId(data.messageId) &&
+             isValidId(data.requestId) &&
+             data.senderId == request.auth.uid &&
+             data.text is string && data.text.size() <= 2000 &&
+             data.createdAt is string;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['notificationId', 'userId', 'title', 'message', 'type', 'read', 'createdAt']) &&
+             isValidId(data.notificationId) &&
+             isValidId(data.userId) &&
+             data.title is string && data.title.size() <= 200 &&
+             data.message is string && data.message.size() <= 1000 &&
+             data.type in ['new_quote', 'booking_accepted', 'new_message', 'status_update'] &&
+             data.read is bool &&
+             data.createdAt is string;
+    }
+
+    function isValidReview(data) {
+      return data.keys().hasAll(['reviewId', 'requestId', 'providerId', 'customerId', 'customerName', 'rating', 'createdAt']) &&
+             isValidId(data.reviewId) &&
+             isValidId(data.requestId) &&
+             isValidId(data.providerId) &&
+             data.customerId == request.auth.uid &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+             (!data.keys().contains('comment') || (data.comment is string && data.comment.size() <= 2000)) &&
+             data.createdAt is string;
+    }
+
+    // Collection Rules
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && (request.auth.uid == userId || isProvider());
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming());
+      allow delete: if isOwner(userId);
+
+      match /notifications/{notificationId} {
+        allow read, delete: if isOwner(userId);
+        allow create: if isSignedIn() && isValidNotification(incoming()) && incoming().userId == userId;
+        allow update: if isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+      }
+    }
+
+    match /requests/{requestId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isCustomer() && isValidRequest(incoming());
+      allow update: if isSignedIn() && (
+        // Customer updates details or cancels or books
+        (isOwner(existing().customerId) && incoming().customerId == existing().customerId && 
+         incoming().diff(existing()).affectedKeys().hasAny(['status', 'providerId', 'providerName']) && 
+         incoming().status in ['booked', 'completed', 'cancelled']) ||
+        // System/Provider incrementing quote count
+        (isProvider() && incoming().diff(existing()).affectedKeys().hasOnly(['quoteCount']))
+      );
+      allow delete: if isOwner(existing().customerId) && existing().status == 'open';
+
+      match /quotes/{quoteId} {
+        allow get: if isSignedIn() && (isOwner(existing().providerId) || isOwner(get(/databases/$(database)/documents/requests/$(requestId)).data.customerId));
+        allow list: if isSignedIn() && (isProvider() || isOwner(get(/databases/$(database)/documents/requests/$(requestId)).data.customerId));
+        allow create: if isSignedIn() && isProvider() && isValidQuote(incoming()) && 
+                      get(/databases/$(database)/documents/requests/$(requestId)).data.status == 'open';
+        allow update: if isSignedIn() && (
+          // Provider updates amount or message
+          (isOwner(existing().providerId) && incoming().diff(existing()).affectedKeys().hasOnly(['amount', 'message', 'createdAt'])) ||
+          // Customer accepts/rejects
+          (isOwner(get(/databases/$(database)/documents/requests/$(requestId)).data.customerId) && 
+           incoming().diff(existing()).affectedKeys().hasOnly(['status']))
+        );
+      }
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && (
+          isOwner(get(/databases/$(database)/documents/requests/$(requestId)).data.customerId) ||
+          isOwner(get(/databases/$(database)/documents/requests/$(requestId)).data.providerId)
+        );
+        allow create: if isSignedIn() && (
+          isOwner(get(/databases/$(database)/documents/requests/$(requestId)).data.customerId) ||
+          isOwner(get(/databases/$(database)/documents/requests/$(requestId)).data.providerId)
+        ) && isValidMessage(incoming()) && 
+        get(/databases/$(database)/documents/requests/$(requestId)).data.status == 'booked';
+      }
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isCustomer() && isValidReview(incoming()) && 
+                    get(/databases/$(database)/documents/requests/$(incoming().requestId)).data.status == 'completed' &&
+                    get(/databases/$(database)/documents/requests/$(incoming().requestId)).data.customerId == request.auth.uid;
+    }
+  }
+}
